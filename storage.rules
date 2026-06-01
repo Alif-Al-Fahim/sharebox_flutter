@@ -1,0 +1,52 @@
+// storage.rules
+// Deploy with: firebase deploy --only storage
+
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // ─── HELPER FUNCTIONS ─────────────────────────────────────────
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isImageFile() {
+      return request.resource.contentType.matches('image/.*');
+    }
+
+    function isFileSizeUnder5MB() {
+      return request.resource.size < 5 * 1024 * 1024;
+    }
+
+    // ─── PROFILE IMAGES ───────────────────────────────────────────
+    match /profiles/{userId}/{fileName} {
+      // Anyone authenticated can read profile images
+      allow read: if isAuthenticated();
+
+      // Only the user can upload/delete their own profile image
+      allow write: if isAuthenticated()
+        && request.auth.uid == userId
+        && isImageFile()
+        && isFileSizeUnder5MB();
+
+      allow delete: if isAuthenticated()
+        && request.auth.uid == userId;
+    }
+
+    // ─── TOOL IMAGES ──────────────────────────────────────────────
+    match /tools/{ownerId}/{toolId}/{fileName} {
+      // Anyone authenticated can read tool images
+      allow read: if isAuthenticated();
+
+      // Only the owner can upload tool images
+      allow write: if isAuthenticated()
+        && request.auth.uid == ownerId
+        && isImageFile()
+        && isFileSizeUnder5MB();
+
+      // Only the owner can delete tool images
+      allow delete: if isAuthenticated()
+        && request.auth.uid == ownerId;
+    }
+  }
+}
